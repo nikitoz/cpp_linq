@@ -1,23 +1,29 @@
 #include <iostream>
 #include <vector>
+#include <set>
 #include "yal.hpp"
 
 template <typename T>
-struct plus_one {
-	void operator()(T& t) { t += 1; }
-};
-
-template <typename T>
-struct greater5 {
-	bool operator()(const T& t) { return (t > 5); }
-};
-
+void print_collection(T& collection) {
+	for (typename T::iterator it = collection.begin(); it != collection.end(); ++it)
+		std::cout << *it << " ";
+	std::cout << std::endl;
+}
 
 int main() {
-	std::vector<int> vec;
-	vec.push_back(1); vec.push_back(2);  vec.push_back(5);  vec.push_back(4);
-	std::vector<int> v = fromVector(vec).foreach(plus_one<int>()).where(greater5<int>()).foreach(plus_one<int>()).toVector();
-	for (int i = 0; i != v.size(); ++i)
-		std::cout << v[i] << " ";
+	std::vector<char> vec = {'H', 'E', 'L', 'L', 'O'};
+	std::set<char>    el  = {'H', 'E', 'L', 'L'};
+	std::vector<char> v = yal::from(vec).where([&](const char& ch) { return el.find(ch) != el.end(); }).toVector();
+	print_collection(v);
+
+	std::vector<std::string> vs = {"hello", "cruel", "world"};
+	vs = yal::from(vs).where([](const std::string& str) { return str != "cruel"; }).toVector();
+	print_collection(vs);
+
+
+	std::vector<int> vint = {1,2,3,4,5,6,7};
+	vint = yal::from(vint).foreach([](int& i){ ++i; }).where([](int i){ return i < 5;}).foreach([](int& i) { i += 10; }).toVector();
+	print_collection(vint);
+
 	return 0;
 }
