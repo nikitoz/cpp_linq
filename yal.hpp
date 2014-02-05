@@ -1,7 +1,9 @@
 #ifndef __YAL__
 #define __YAL__
 #include <vector>
+#include <iostream>
 namespace yal {
+
 /*
 	range over iterator
 */
@@ -21,6 +23,8 @@ public:
 
 	bool          ok() const  { return begin_ != end_; }
 	iter_t        take()      { return begin_++;       }
+    template <typename TIt>
+	bool          take2(TIt& it) { if (false == ok()) return false; it = *begin_; begin_++; return true; }
 	const iter_t& end() const { return end_;           }
 };
 /*
@@ -38,7 +42,8 @@ private:
 
 public:
 	rrange_filter(TNestedRange range1, TFilter& filter)
-		: range_(range1), filter_(filter) { }
+		:  filter_(filter), range_(range1)
+	{ }
 
 	bool ok() const
 	{ return range_.ok(); }
@@ -51,11 +56,23 @@ public:
 		return end();
 	}
 
+	template <typename TIt>
+	bool take2(TIt& it) {
+		do {
+			if (range_.take2(it)) {
+				if (filter_(*it))
+					return true;
+				it.rollback();
+			}
+		} while (ok());
+		return false;
+	}
+
 	const iter_t& end() const
 	{ return range_.end(); }
 };
 /*
-	Mapping range over range
+	Mapping range on range
 */
 template <typename TNestedRange, typename TMap>
 struct rrange_map {
@@ -69,7 +86,7 @@ private:
 
 public:
 	rrange_map(TNestedRange range1, TMap& foo)
-		: range_(range1), foo_(foo)
+		: foo_(foo), range_(range1) 
 	{ }
 
 	bool    ok() const
@@ -82,8 +99,52 @@ public:
 		return retVal;
 	}
 
+	template <typename TIt>
+	bool take2(TIt& it) {
+		if (ok() && range_.take2(it)) {
+			foo_(*it);
+			return true;
+		}
+		return false;
+	}
+
 	const iter_t& end() const
 	{ return range_.end(); }
+};
+
+/*
+  Insert range
+*/
+template 
+<
+	typename TContainer // Concept that supports insert
+	, typename TIt      // Iterator type
+>
+struct rrange_insert {
+	typedef typename TContainer::reference reference;
+private:
+	TContainer& container_;
+	TIt         it_;
+	TIt         previous_;
+
+public:
+	rrange_insert(TContainer& container, TIt it)
+		: container_(container) , it_(it), previous_(container.end())
+	{ }
+	
+	void operator=(typename TContainer::value_type& value) {
+		it_ = container_.insert(it_, value);
+		previous_ = it_++;
+	}
+
+	reference operator*() {
+		return *previous_; // fails if no assignment was called
+	}
+
+	void rollback() {
+		it_ = container_.erase(previous_);
+		previous_ = it_++;
+	}
 };
 /*
 	Atom is basic data type which encapsulates ranges, along with possible operations over them
@@ -108,6 +169,23 @@ struct atom {
 				v.push_back(*i); 
 		}
 		return v;
+	}
+
+	template<typename T>
+	T to() {
+		T t;
+		while (range_.ok()) { 
+			typename TRange::iter_t i = range_.take(); 
+			if (i != range_.end()) 
+				t.push_back(*i); 
+		}
+		return t;
+	}
+
+	template <typename TContainer>
+	void fill(TContainer& container) {
+		rrange_insert<TContainer, typename TContainer::iterator> insert_range(container, container.begin());
+		while (range_.ok() && range_.take2(insert_range));
 	}
 
 	template <typename TFoo>
